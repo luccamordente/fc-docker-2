@@ -1,0 +1,61 @@
+version: "3"
+
+services:
+  app:
+    image: mordente/app:dev
+    build:
+      context: node
+    container_name: app
+    entrypoint: dockerize -wait tcp://db:3306 -timeout 30s node index.js
+    volumes:
+      - ./node:/usr/src/app
+    tty: true
+    ports:
+      - "3000"
+    depends_on:
+      - db
+    networks:
+      - appnet
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 1s
+      retries: 20
+      start_period: 0s
+      
+
+  db:
+    image: mysql:5.7
+    command: --innodb-use-native-aio=0
+    container_name: db
+    restart: always
+    tty: true
+    environment:
+      - MYSQL_DATABASE=app
+      - MYSQL_ROOT_PASSWORD=root
+    volumes:
+      - "db-data:/var/lib/mysql"
+    networks:
+      - appnet
+
+  nginx:
+    image: mordente/nginx:dev
+    build:
+      context: nginx
+    container_name: nginx
+    restart: always
+    tty: true
+    ports:
+      - "8080:80"
+    networks:
+      - appnet
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  db-data:
+
+networks:
+  appnet:
+    driver: bridge
